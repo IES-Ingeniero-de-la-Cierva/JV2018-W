@@ -1,15 +1,15 @@
 /**  
  * Proyecto: Juego de la vida.
  *  Resuelve todos los aspectos del almacenamiento del
- *  DTO Usuario utilizando base de datos mySQL.
+ *  DTO Simulacion utilizando base de datos mySQL.
  *  Colabora en el patron Fachada.
  *  @since: prototipo2.2
  *  @source: SimulacionesDAO.java  
- *  @version: 2.2 - 2019/06/11  
- *  @author: Jorge Orenes Rubio
- *  @author: VictorJLucas
- *  @author ARM - Antonio Ramírez Márquez
+ *  @version: 2.2 - 2019/06/12  
+ *  @author: arm - Antonio Ramírez Márquez
  *  @author: Fran Arce
+ *  @author: VictorJLucas
+ *  @author: themajoser
  */
  
 package accesoDatos.mySql;
@@ -41,7 +41,7 @@ import util.Formato;
  
 public class SimulacionesDAO implements OperacionesDAO {
     
- 
+	
     // Singleton
     private static SimulacionesDAO instance = null;
     private Connection db;
@@ -58,16 +58,28 @@ public class SimulacionesDAO implements OperacionesDAO {
      */
     public static SimulacionesDAO getInstance() {
    	 if (instance == null) {
-   		 instance = new SimulacionesDAO();
+   		 try {
+			instance = new SimulacionesDAO();
+		} catch (DatosException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
    	 }
    	 return instance;
     }
  
     /**
      * Constructor de uso interno.
+     * @throws DatosException 
      */
-    private SimulacionesDAO() {
+    private SimulacionesDAO() throws DatosException {
    		 inicializar();
+   		 try {
+			alta(new Simulacion());
+		} catch (ModeloException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
     }
  
     /**
@@ -96,12 +108,12 @@ public class SimulacionesDAO implements OperacionesDAO {
     private void crearTablaSimulaciones() throws SQLException {
    	 Statement s = db.createStatement();
    	 s.executeUpdate("CREATE TABLE IF NOT EXISTS simulaciones("  
-   			 + "usr VARCHAR(45) NOT NULL ,"
+   			 + "`usuario` VARCHAR(45) NOT NULL,"
    			 + "fecha DATE,"
-   			 + "mundo VARCHAR(45) NOT NULL ,"
-   			 + "ciclos CHAR(10) NOT NULL ,"  
-   			 + "estado VARCHAR(20) NOT NULL ," 
-   			+ "PRIMARY KEY (`usr`, `fecha`))");
+   			 + "mundo VARCHAR(45) NOT NULL,"
+   			 + "ciclos CHAR(10) NOT NULL,"  
+   			 + "estado VARCHAR(20) NOT NULL,"  
+   			 + "PRIMARY KEY (`usuario`, `fecha`))");
    			 
     }
  
@@ -118,19 +130,6 @@ public class SimulacionesDAO implements OperacionesDAO {
    	 return obtener(((Simulacion) obj).getId());
     }
  
-    //1
-    private void cargarPredeterminados() throws SQLException, DatosException {
-    	try {
-			alta(new Simulacion());
-			alta(new Simulacion(new Usuario(),
-					new Fecha(),new Mundo(),8,Simulacion.EstadoSimulacion.PREPARADA));
-		} catch (ModeloException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-    }
-
-    
     /**
      * Obtiene el usuario buscado dado su id, el nif o el correo.  
      * Si no existe devuelve null.
@@ -143,7 +142,12 @@ public class SimulacionesDAO implements OperacionesDAO {
    	 assert !id.equals("");
    	 assert !id.equals(" ");
    	 
-   	 ejecutarConsulta(id);
+   	 try {
+		ejecutarConsulta(id);
+	} catch (ModeloException e) {
+		// TODO Auto-generated catch block
+		e.printStackTrace();
+	}
  
    	 // Establece columnas y etiquetas.
    	 establecerColumnasModelo();
@@ -167,20 +171,39 @@ public class SimulacionesDAO implements OperacionesDAO {
      * Determina el idUsr recibido y ejecuta la consulta.
      * Los resultados quedan en el ResultSet
      * @param idUsr
+     * @throws ModeloException 
      */
-    private void ejecutarConsulta(String idSimul) {
+    private void ejecutarConsulta(String idSimul) throws ModeloException {
    	 try {
-   		 rsSimulaciones = stSimulaciones.executeQuery("SELECT * FROM simulaciones " 
-   		 	+ "WHERE CONCAT(usr,':',DATE_FORMAT(fecha,'%Y%m%d%H%i%s'))='"+ idSimul+"'");
+   		Simulacion simul= obtener(idSimul);
+   		String id =simul.getUsr().getId();
+   		String fecha=fechaParaSimulacion(simul.getFecha());
+   		
+   		 rsSimulaciones = stSimulaciones.executeQuery("SELECT * FROM simulaciones "
+                	+ "WHERE usuario='"+id+"' AND fecha='"+fecha+"'");
    	 }  
    	 catch (SQLException e) {
    		 e.printStackTrace();
    	 }
     }
+    /**
+     * Adapta el formato de la fecha para consultas mySql.
+     * @param fecha
+     * @return String
+     */
+    private static String fechaParaSimulacion(Fecha fecha) {
+		
+			String año=fecha.toStringMarcaTiempo().substring(0,4);
+			String mes=fecha.toStringMarcaTiempo().substring(4,6);
+			String dia=fecha.toStringMarcaTiempo().substring(6,8);
+			
+		return año+"-"+mes+"-"+dia ;
+			
+    }
  
     /**
      * Crea las columnas del TableModel a partir de los metadatos del ResultSet
-     * de una consulta a base de datos
+     * de una consulta a base de dato
      */
     private void establecerColumnasModelo() {
    	 try {
@@ -198,7 +221,7 @@ public class SimulacionesDAO implements OperacionesDAO {
  
    		 // Incorpora array de etiquetas en el TableModel.
    		 ((DefaultTableModel) this.tmSimulaciones).setColumnIdentifiers(etiquetas);
-   	 }  
+   	 } 
    	 catch (SQLException e) {
    		 e.printStackTrace();
    	 }
@@ -266,7 +289,7 @@ public class SimulacionesDAO implements OperacionesDAO {
    	 assert !idUsr.equals(" ");
    	 
    	 try {
-   		 rsSimulaciones = stSimulaciones.executeQuery("SELECT * FROM simulaciones WHERE usr = '"+ idUsr + "'");
+   		 rsSimulaciones = stSimulaciones.executeQuery("SELECT * FROM simulaciones WHERE usuario = '" + idUsr + "'");
    		 this.establecerColumnasModelo();
 
    		 this.borrarFilasModelo();
@@ -281,7 +304,7 @@ public class SimulacionesDAO implements OperacionesDAO {
    	 
    	 return this.bufferSimulaciones;
     }
-     
+
     /**
      * Da de alta un nuevo usuario en la base de datos.
      * @param usr, el objeto a dar de alta.
@@ -389,28 +412,12 @@ public class SimulacionesDAO implements OperacionesDAO {
 		throw new DatosException("Actualizar: "+ simuActualizado.getId() + " no existe.");
     }
     
-    /**
-     * Adapta el formato de la fecha para consultas mySql.
-     * @param fecha
-     * @return String
-     */
-    private static String fechaParaSimulacion(Fecha fecha) {
-        
-            String año=fecha.toStringMarcaTiempo().substring(0,4);
-            String mes=fecha.toStringMarcaTiempo().substring(4,6);
-            String dia=fecha.toStringMarcaTiempo().substring(6,8);
-            
-        return año+"-"+mes+"-"+dia ;
-            
-    }
-
-    
     /** Devuelve listado completo de usuarios.
      *  @return texto con el volcado de todos los usuarios.
      */
     @Override
     public String listarDatos() {
-        return obtenerTodos().toString();
+   	 return obtenerTodos().toString();
     }
  
     /**
@@ -421,37 +428,37 @@ public class SimulacionesDAO implements OperacionesDAO {
      * @throws SQLException  
      */    
     public ArrayList<Simulacion> obtenerTodos() {
-        try {
-            // Se realiza la consulta y los resultados quedan en el ResultSet
-            this.rsSimulaciones = stSimulaciones.executeQuery("SELECT * FROM simulaciones");
+   	 try {
+   		 // Se realiza la consulta y los resultados quedan en el ResultSet
+   		 this.rsSimulaciones = stSimulaciones.executeQuery("SELECT * FROM simulaciones");
  
-            // Establece columnas y etiquetas
-            this.establecerColumnasModelo();
+   		 // Establece columnas y etiquetas
+   		 this.establecerColumnasModelo();
  
-            // Borrado previo de filas
-            this.borrarFilasModelo();
+   		 // Borrado previo de filas
+   		 this.borrarFilasModelo();
  
-            // Volcado desde el resulSet
-            this.rellenarFilasModelo();
+   		 // Volcado desde el resulSet
+   		 this.rellenarFilasModelo();
  
-            // Actualiza buffer de objetos.
-            this.sincronizarBufferUsuarios();    
-        }  
-        catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return this.bufferSimulaciones;
+   		 // Actualiza buffer de objetos.
+   		 this.sincronizarBufferUsuarios();    
+   	 }  
+   	 catch (SQLException e) {
+   		 e.printStackTrace();
+   	 }
+   	 return this.bufferSimulaciones;
     }
  
     @Override
     public void borrarTodo() {
-        bufferSimulaciones.clear();
-        try {
-            this.stSimulaciones.executeQuery("DELETE FROM simulaciones");
-        }  
-        catch (SQLException e) {
-            e.printStackTrace();
-        }
+   	 bufferSimulaciones.clear();
+   	 try {
+   		 this.stSimulaciones.executeQuery("DELETE FROM simulaciones");
+   	 }  
+   	 catch (SQLException e) {
+   		 e.printStackTrace();
+   	 }
     }
  
     /**
@@ -460,22 +467,22 @@ public class SimulacionesDAO implements OperacionesDAO {
      */
     @Override
     public String listarId() {
-        try {
-           
-           
-            this.rsSimulaciones = stSimulaciones.executeQuery("SELECT CONCAT(usuario,':',DATE_FORMAT(fecha,'%Y%m%d%H%i%s')) FROM simulaciones");
-        }  
-        catch (SQLException e) {
-            e.printStackTrace();
-        }
-        this.establecerColumnasModelo();
-        this.borrarFilasModelo();
-        this.rellenarFilasModelo();
-        StringBuilder result = new StringBuilder();
-        for (int i = 0; i < tmSimulaciones.getRowCount(); i++) {
-            String id = (String) tmSimulaciones.getValueAt(i, 0);
-        }
-        return result.toString();
+   	 try {
+   		
+   		
+   		 this.rsSimulaciones = stSimulaciones.executeQuery("SELECT CONCAT(usuario,':',DATE_FORMAT(fecha,'%Y%m%d%H%i%s')) FROM simulaciones");
+   	 }  
+   	 catch (SQLException e) {
+   		 e.printStackTrace();
+   	 }
+   	 this.establecerColumnasModelo();
+   	 this.borrarFilasModelo();
+   	 this.rellenarFilasModelo();
+   	 StringBuilder result = new StringBuilder();
+   	 for (int i = 0; i < tmSimulaciones.getRowCount(); i++) {
+   		 String id = (String) tmSimulaciones.getValueAt(i, 0);
+   	 }
+   	 return result.toString();
     }
  
     /**
@@ -483,13 +490,14 @@ public class SimulacionesDAO implements OperacionesDAO {
      */
     @Override
     public void cerrar() {
-        try {
-            stSimulaciones.close();
-        }  
-        catch (SQLException e) {
-            e.printStackTrace();
-        }
+   	 try {
+   		 stSimulaciones.close();
+   	 }  
+   	 catch (SQLException e) {
+   		 e.printStackTrace();
+   	 }
     }
+
     
 } // class
 
